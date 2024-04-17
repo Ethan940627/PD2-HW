@@ -1,0 +1,226 @@
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.regex.*;
+
+
+public class CodeGenerator {
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.err.println("請輸入mermaid檔案名稱");           
+        }
+        else {
+            String fileName = args[0];
+            String mermaidCode = "";
+
+            FileReader mermaidCodeReader = new FileReader();
+            mermaidCode = mermaidCodeReader.read(fileName);
+            Parser.splitByClass(mermaidCode);
+       }
+    }
+}
+class FileReader {
+    public String read(String fileName) {
+        String mermaidCode;
+        try {
+            mermaidCode = Files.readString(Paths.get(fileName));
+            return mermaidCode;
+        }
+        catch (IOException e) {
+            System.err.println("無法讀取文件 " + fileName);
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+}
+class Parser {
+	public static void splitByClass(String input) {
+            
+        ArrayList<String> classNameArray = new ArrayList<String>();
+        ArrayList<String> classContentArray = new ArrayList<String>();
+
+        String regex = "(class|interface)\\s+(\\w+)";
+        Pattern pattern = Pattern.compile(regex, Pattern.MULTILINE);
+        Matcher matcher = pattern.matcher(input);
+        String className = "";
+
+            
+        while(matcher.find()){
+            className = matcher.group(2);
+            classNameArray.add(className);
+
+
+            StringBuilder classContent = new StringBuilder();
+            classContent.append("public class ").append(className).append(" {\n");
+
+            String[] lines = input.split("\\r?\\n");
+            for(String line : lines){
+
+                String Public_or_Private = "";
+                String type = "";
+                String name = "";
+                String regexVary = className + "\\s*:\\s*(\\-|\\+)\\s*(\\w+\\s*(?:\\[\\])?)\\s+(\\w+)";
+                Pattern patternVary = Pattern.compile(regexVary);
+                Matcher matcherVary = patternVary.matcher(line);
+
+                String Public_or_Private1 = "";
+                String type1 = "";
+                String name1 = "";
+                String regexGet = className + "\\s*:\\s*(\\-|\\+)\\s*(get)\\s*(\\w+)\\s*\\(.*\\)\\s*(int|String|boolean|void)";
+                Pattern patternGet = Pattern.compile(regexGet);
+                Matcher matcherGet = patternGet.matcher(line);
+
+                String Public_or_Private2 = "";
+                String type2 = "";
+                String name2 = "";
+                String regexSet = className + "\\s*:\\s*(\\+|\\-)\\s*(set)\\s*(\\w+)\\((\\w+\\s+\\w+)\\)\\s*(int|String|boolean|void)";
+                Pattern patternSet = Pattern.compile(regexSet);
+                Matcher matcherSet = patternSet.matcher(line);
+
+                String Public_or_Private4 = "";
+                String type4 = "";
+                String name4 = "";
+                String name5 = "";
+                
+                String default_value = "";
+                String regexOthers = className + "\\s*:\\s*(\\+|\\-)\\s*(?!get|set)\\s*(\\w+)\\((.*?)\\)\\s*(int|String|boolean|void)";
+                Pattern patternOthers = Pattern.compile(regexOthers);
+                Matcher matcherOthers = patternOthers.matcher(line);
+
+                if( matcherVary.find()){
+
+                    Public_or_Private = matcherVary.group(1);
+                    type = matcherVary.group(2);
+                    name = matcherVary.group(3);
+    
+                    if(Public_or_Private.equals("+")){
+                        classContent.append("    public ");
+                    }else if(Public_or_Private.equals("-")){
+                        classContent.append("    private ");
+                    }
+                    classContent.append(type).append(" " + name).append(";\n");
+                    continue;
+                    
+                }
+                
+
+                
+                
+                if( matcherGet.find()){
+                    
+                    Public_or_Private1 = matcherGet.group(1);
+                    type1 = matcherGet.group(4);
+                    name1 = matcherGet.group(3);
+        
+                    if(Public_or_Private1.equals("+")){
+                        classContent.append("    public ");
+                    }else if(Public_or_Private1.equals("-")){
+                        classContent.append("    private ");
+                    }
+                    classContent.append(type1).append(" get").append(name1).append("() {\n");
+                    classContent.append("        return ")
+                                .append(Character.toLowerCase(name1.charAt(0)) + name1.substring(1))
+                                .append(";\n");
+                    classContent.append("    }\n");
+                    //System.out.println(name);
+                    //System.out.println(Character.toLowerCase(name.charAt(0)) + name.substring(1));
+                    continue;  
+                }
+                
+
+                
+    
+                if( matcherSet.find()){
+    
+                    Public_or_Private2 = matcherSet.group(1);
+                    type2 = matcherSet.group(5);
+                    name2 = matcherSet.group(3);
+                    String name3 = Character.toLowerCase(name2.charAt(0)) + name2.substring(1);
+    
+                    if(Public_or_Private2.equals("+")){
+                        classContent.append("    public ");
+                    }else if(Public_or_Private2.equals("-")){
+                        classContent.append("    private ");
+                    }
+                    classContent.append(type2).append(" set")
+                                                .append(name2)
+                                                .append("(" + matcherSet.group(4)
+                                                .replaceAll("\\s*(\\w+)\\s*(\\w+)\\s*,\\s*", "$1 $2, ")
+                                                .replaceAll("(\\w+)\\s*(\\w+)", "$1 $2") + ")" + " {\n");
+                    classContent.append("        this.").append(name3 + " = " +name3).append(";\n");
+                    classContent.append("    }\n");
+                    continue;  
+                }
+                
+    
+                if( matcherOthers.find()){
+    
+                    Public_or_Private4 = matcherOthers.group(1);
+                    type4 = matcherOthers.group(4);
+                    name4 = matcherOthers.group(2);
+                    name5 = matcherOthers.group(3);
+                    //System.out.println(name1);
+                    
+                    if(Public_or_Private4.equals("+")){
+                        classContent.append("    public ");
+                    }else if(Public_or_Private4.equals("-")){
+                        classContent.append("    private ");
+                    }
+                    
+
+                    if(type4.equals("int")){
+                        default_value = "return 0;";
+                    }else if(type4.equals("String")){
+                        default_value = "return \"\";";
+                    }else if(type4.equals("boolean")){
+                        default_value = "return false;";
+                    }else if(type4.equals("void")){
+                        default_value = ";";
+                    }
+    
+                    classContent.append(type4).append(" " + name4)
+                                                .append("(" + name5
+                                                .replaceAll("\\s*(\\w+)\\s*(\\w+)\\s*,\\s*", "$1 $2, ")
+                                                .replaceAll("(\\w+)\\s*(\\w+)", "$1 $2") + ")" + " {");
+                    classContent.append( default_value + "}\n" );
+                    continue;
+                                
+                }
+
+            }
+
+            
+
+            classContent.append("}\n");
+            classContentArray.add(classContent.toString());
+
+        }
+
+        int classCount = classNameArray.size();
+        
+        
+        for(int i = 0 ;i < classCount ; i++){
+            try {
+                String output = classNameArray.get(i).concat(".java");
+                
+                String content = classContentArray.get(i);
+                File file = new File(output);
+                if (!file.exists()) {
+                    file.createNewFile();
+                }
+                try (BufferedWriter bw = new BufferedWriter(new FileWriter(file))) {
+                    bw.write(content);
+                }
+                //System.out.println("Java class has been generated: " + output);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
