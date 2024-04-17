@@ -1,0 +1,375 @@
+import java.io.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.text.DecimalFormat;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+public class HtmlParser {
+    static String filePath = "data.csv";
+    static String outputPath = "output.csv";
+    public static void main(String[] args) throws IOException, InterruptedException {
+        // $ java HtmlParser {mode} {task} {stock} {start} {end}
+        switch (args[0]) {
+            case "0":
+                mission.mode_0();
+                break;
+            case "1":
+                switch (args[1]) {
+                    case "0":
+                        mission.mode_1_0();
+                        break;
+                    case "1":
+                        //         - 1：輸出指定股票（`stock`）在指定時間段（`start`, `end`）的股價 5 日移動平均至`output.csv` 。
+                        mission.mode_1_1( args[2], Integer.parseInt(args[3]), Integer.parseInt(args[4]) );
+                        break;
+                    case "2":
+                        //         - 2：輸出指定股票（`stock`）在指定時間段（`start`, `end`）的股價標準差至`output.csv` 。
+                        mission.mode_1_2( args[2], Integer.parseInt(args[3]), Integer.parseInt(args[4]) );
+                        break;
+                    case "3":
+                        //         - 3：輸出指定時間段（`start`, `end`）的股價標準差大的 top-3至`output.csv` 。
+                        mission.mode_1_3( Integer.parseInt(args[3]), Integer.parseInt(args[4]) );
+
+                        break;
+                    case "4":
+                        //         - 4：輸出指定股票（`stock`）在指定時間段（`start`, `end`）的回歸直線至`output.csv`
+                        mission.mode_1_4( args[2], Integer.parseInt(args[3]), Integer.parseInt(args[4]) );
+                        break;
+                    default:
+                        System.out.println("Invalid mode");
+                        break;
+                }
+                break;
+            default:
+                System.out.println("Invalid mode");
+                break;
+        }
+    }
+
+
+
+    static class mission {
+        private static void mode_0( ) throws IOException {
+            Document doc = Jsoup.connect("https://pd2-hw3.netdb.csie.ncku.edu.tw/").get();
+
+            Elements names = doc.select("th");
+            Elements prices = doc.select("td");
+
+
+            BufferedReader reader = new BufferedReader(new FileReader(filePath));
+            PrintWriter writer = new PrintWriter(new FileWriter(filePath,true));
+            String line = reader.readLine();
+            reader.close();
+
+            if ( line == null ) {
+                for (Element name : names) {
+                    writer.print(name.text());
+                    if ( !name.equals( names.get( names.size() - 1 ) ) ) {
+                        writer.print(",");
+                    }
+                }
+                writer.println();
+                for (Element price : prices) {
+                    writer.print(price.text());
+                    if ( price != prices.get( prices.size() - 1 ) ) {
+                        writer.print(",");
+                    }
+                }
+                writer.println();
+                writer.close();
+            }
+            else {
+                reader = new BufferedReader(new FileReader(filePath));
+                line = reader.readLine();
+                int row = Integer.parseInt(doc.title().substring(3));
+                ArrayList<String> data_list = new ArrayList<>();
+                do {
+                    data_list.add(line);
+                }while( (line = reader.readLine()) != null);
+
+
+                if ( row > data_list.size() - 1 ){
+                    writer = new PrintWriter(new FileWriter(filePath,true));
+                    for (Element price : prices) {
+                        writer.print(price.text());
+                        if ( price != prices.get( prices.size() - 1 ) ) {
+                            writer.print(",");
+                        }
+                    }
+                    writer.println();
+                    writer.close();
+                }
+                else if(row < data_list.size() - 1){
+                    boolean done = true;
+                    writer = new PrintWriter(new FileWriter(filePath));
+                    for (int i = 0; i < data_list.size(); i++) {
+                        if (i == row && done) {
+                            for (Element price : prices) {
+                                writer.print(price.text());
+                                if (price != prices.get(prices.size() - 1)) {
+                                    writer.print(",");
+                                }
+                            }
+                            writer.println();
+                            done = false;
+                            i--;
+                        }
+                        else {
+                            writer.println(data_list.get(i));
+                        }
+                    }
+                    writer.close();
+                }
+
+
+                reader.close();
+            }
+        }
+
+        private static void mode_1_0() throws IOException {
+            BufferedReader reader = new BufferedReader(new FileReader(filePath));
+            PrintWriter writer = new PrintWriter(new FileWriter(outputPath,true));
+
+            String line = reader.readLine();
+
+            do {
+                writer.println(line);
+            }while ((line = reader.readLine()) != null );
+            reader.close();
+            writer.close();
+        }
+
+        private static void mode_1_1(String stock, int start, int end) throws IOException {
+            ArrayList<Double> stock_list = new ArrayList<>();
+            ArrayList<Double> output_list = new ArrayList<>();
+
+            stock_list = tool.ReadStock(stock, start, end);
+
+            for (int i = 0; i < stock_list.size() - 4; i++) {
+                int day = 0;
+                double total = 0;
+                while (day < 5) {
+                    total += stock_list.get(i + day);
+                    day++;
+                }
+                BigDecimal bd = new BigDecimal(total / day);
+                bd = bd.setScale(2, RoundingMode.HALF_UP);
+                output_list.add(bd.doubleValue());
+            }
+
+            tool.write_file(stock, start, end, output_list);
+        }
+
+        private static void mode_1_2(String stock, int start, int end) throws IOException {
+            ArrayList<Double> stock_list;
+            ArrayList<Double> output_list = new ArrayList<>();
+
+            stock_list = tool.ReadStock(stock, start, end);
+
+            double total = 0;
+            for (Double item : stock_list) {
+                total += item;
+            }
+
+            double avg = total / (stock_list.size());
+            double sum_of_squa = 0;
+
+            for (Double item : stock_list) {
+                sum_of_squa += ((item - avg) * (item - avg));
+            }
+
+            BigDecimal bd = new BigDecimal(Math.sqrt(sum_of_squa / (stock_list.size() - 1)));
+            bd = bd.setScale(2, RoundingMode.HALF_UP);
+
+            output_list.add(bd.doubleValue());
+            tool.write_file(stock, start, end, output_list);
+
+        }
+
+        private static void mode_1_3(int start, int end) throws IOException {
+            ArrayList<ArrayList<Double>> stock_list;
+            ArrayList<Double> output_list = new ArrayList<>();
+            ArrayList<Double> price_list = new ArrayList<>();
+            ArrayList<String> name_list = new ArrayList<>();
+
+            stock_list = tool.ReadStock(start, end);
+
+            BufferedReader reader = new BufferedReader(new FileReader(filePath));
+            String line = reader.readLine();
+
+            reader.close();
+            String[] values = line.split(",");
+
+            for (ArrayList<Double> stock : stock_list) {
+                double total = 0;
+                for (Double item : stock) {
+                    total += item;
+                }
+
+                double avg = total / (stock.size());
+                double sum_of_squa = 0;
+
+                for (Double item : stock) {
+                    sum_of_squa += ((item - avg) * (item - avg));
+                }
+
+                BigDecimal bd = new BigDecimal(Math.sqrt(sum_of_squa / (stock.size() - 1)));
+                bd = bd.setScale(2, RoundingMode.HALF_UP);
+
+                output_list.add(bd.doubleValue());
+            }
+
+            for (int j = 0; j < 3; j++) {
+                double max_value = output_list.get(0);
+                int index = 0;
+                for (int i = 0; i < output_list.size(); i++) {
+                    if (output_list.get(i) > max_value && !price_list.contains(output_list.get(i))) {
+                        max_value = output_list.get(i);
+                        index = i;
+                    }
+                }
+
+                price_list.add(output_list.get(index));
+                name_list.add(values[index]);
+            }
+            tool.write_file(name_list, start, end, price_list);
+        }
+
+
+        private static void mode_1_4(String stock, int start, int end) throws IOException {
+            ArrayList<Double> stock_list = new ArrayList<>();
+            ArrayList<Double> output_list = new ArrayList<>();
+
+            stock_list = tool.ReadStock(stock, start, end);
+
+            double total = 0;
+            for (Double item : stock_list) {
+                total += item;
+            }
+            double avg_price = total / stock_list.size();
+            double avg_time = (double) ((start + end) * (end - start + 1)) / (2 * stock_list.size());
+            double b1 = 0;
+            double temp = 0;
+
+            for (int i = 0; i < stock_list.size(); i++) {
+                b1 += (start + i - avg_time) * (stock_list.get(i) - avg_price);
+                temp += (start + i - avg_time) * (start + i - avg_time);
+            }
+
+            b1 /= temp;
+            double bo = 0;
+            bo = avg_price - (b1 * avg_time);
+
+            BigDecimal bd = new BigDecimal(b1);
+            bd = bd.setScale(2, RoundingMode.HALF_UP);
+            output_list.add(bd.doubleValue());
+            bd = new BigDecimal(bo);
+            bd = bd.setScale(2, RoundingMode.HALF_UP);
+            output_list.add(bd.doubleValue());
+
+            tool.write_file(stock, start, end, output_list);
+        }
+    }
+
+    static class tool {
+        private static void write_file(String stock, int start, int end, ArrayList<Double> output_list) throws IOException {
+            BufferedWriter writetext = new BufferedWriter(new FileWriter(outputPath, true));
+            writetext.write((stock + "," + start + "," + end + "\n"));
+            for (Double item : output_list) {
+                DecimalFormat df = new DecimalFormat("0.##");
+                String formatted = df.format(item);
+                writetext.write(formatted);
+                if (item != output_list.get(output_list.size() - 1))
+                    writetext.write((","));
+            }
+            writetext.write("\n");
+            writetext.close();
+        }
+
+        private static void write_file(ArrayList<String> stock, int start, int end, ArrayList<Double> output_list) throws IOException {
+            BufferedWriter writetext = new BufferedWriter(new FileWriter(outputPath, true));
+            for (String name : stock) {
+                writetext.write(name + ",");
+            }
+
+            writetext.write(start + "," + end + "\n");
+
+            for (Double item : output_list) {
+                DecimalFormat df = new DecimalFormat("0.##");
+                String formatted = df.format(item);
+                writetext.write(formatted);
+                if (item != output_list.get(output_list.size() - 1))
+                    writetext.write((","));
+            }
+            writetext.write("\n");
+            writetext.close();
+        }
+
+        private static ArrayList<Double> ReadStock(String stock, int start, int end) throws IOException {
+
+            BufferedReader reader = new BufferedReader(new FileReader(filePath));
+            String line = reader.readLine();
+
+            int stock_Index = 0;
+            if (line != null) {
+                String[] headers = line.split(",");
+                for (int i = 0; i < headers.length; i++) {
+                    if (headers[i].equals(stock)) {
+                        stock_Index = i;
+                        break;
+                    }
+                }
+            }
+
+            int row = 1;
+            ArrayList<Double> stock_list = new ArrayList<>();
+
+            while ((line = reader.readLine()) != null && (row <= end)) {
+                if (row >= start) {
+                    String[] values = line.split(",");
+                    if (stock_Index < values.length) {
+                        stock_list.add(Double.valueOf(values[stock_Index]));
+                    }
+                }
+                row++;
+            }
+
+            reader.close();
+            return stock_list;
+        }
+
+        private static ArrayList<ArrayList<Double>> ReadStock(int start, int end) throws IOException {
+            BufferedReader reader = new BufferedReader(new FileReader(filePath));
+            String line = reader.readLine();
+
+
+            ArrayList<ArrayList<Double>> stock_list = new ArrayList<>();
+
+
+            for (int i = 0; i < line.split(",").length; i++) {
+                stock_list.add(new ArrayList<>());
+            }
+            int row = 1;
+
+            while ((line = reader.readLine()) != null && (row <= end)) {
+                if (row >= start) {
+                    String[] values = line.split(",");
+                    for (int i = 0; i < line.split(",").length; i++)
+                        stock_list.get(i).add(Double.valueOf(values[i]));
+                }
+                row++;
+            }
+
+            reader.close();
+            return stock_list;
+        }
+    }
+}
+
+
+
