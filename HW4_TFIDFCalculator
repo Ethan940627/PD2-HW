@@ -1,0 +1,169 @@
+import java.io.*;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+
+public class TFIDFCalculator {
+    static String data_path = "";
+    static String outputPath = "output.txt";
+    public static void main(String[] args) throws IOException {
+        String file_path = args[1];
+        data_path = args[0];
+        ArrayList<ArrayList<String>> data_list = tool.read_file(file_path);
+        ArrayList<Double> ans_list = new ArrayList<>();
+        ArrayList<Trie> data_trie = Bulid_trie.bulid_trie();
+
+        for( int i = 0; i < data_list.get(0).size(); i++ ) {
+            int data_num = Integer.parseInt(data_list.get(1).get(i));
+            String word = data_list.get(0).get(i);
+            int total_words = Bulid_trie.all_data_trie.search(word);
+
+            double TfIdf = tfIdfCalculate(data_trie.get(data_num).search(word), data_trie.get(data_num).total, data_trie.size(), total_words);
+
+            ans_list.add(TfIdf);
+        }
+        tool.write_file(ans_list);
+    }
+
+    public static double tf(int number_term_in_doc, int doc_size) {
+        return (double) number_term_in_doc / doc_size;
+    }
+    public static double idf(int docs_size, int number_doc_contain_term) {
+        return Math.log((double) docs_size / number_doc_contain_term);
+    }
+    public static double tfIdfCalculate( int number_term_in_doc , int doc_size, int docs_size, int number_doc_contain_term ) {
+        return tf(number_term_in_doc, doc_size) * idf( docs_size, number_doc_contain_term);
+    }
+
+
+
+
+    static public class Bulid_trie{
+        static public Trie all_data_trie = new Trie();
+        static private String preprocessor(String word) {
+            String res = "";
+            for (char i : word.toCharArray()) {
+                if( i >= 'a' && i <= 'z' || i >='A' && i<= 'Z'){
+                    res += i;
+                }
+            }
+            return res.toLowerCase();
+        }
+        static public ArrayList<Trie> bulid_trie() throws IOException {
+            BufferedReader reader = new BufferedReader(new FileReader(data_path));
+            ArrayList<Trie> data_trie = new ArrayList<>();
+            String line;
+            String temp_word = "";
+            int num_line = 0;
+            Trie temp_trie = new Trie();
+            String word = "";
+            while ((line = reader.readLine()) != null) {
+                num_line++;
+                for ( int i = 0; i < line.length(); i ++) {
+                    if( line.charAt(i) >= 'a' && line.charAt(i) <= 'z' || line.charAt(i) >='A' && line.charAt(i) <= 'Z'){
+                        temp_word += line.charAt(i);
+                        word = preprocessor(temp_word);
+                        if( i == line.length() - 1 && !word.equals("")){
+                            temp_trie.total ++;
+                            temp_trie.insert(word);
+                            if(temp_trie.search(word)==1) {
+                                all_data_trie.insert(word);
+                            }
+                            temp_word = "";
+                            word = "";
+                        }
+                    }
+                    else {
+                        if (!word.equals("")) {
+                            temp_trie.total ++;
+                            temp_trie.insert(word);
+                            if(temp_trie.search(word) == 1) {
+                                all_data_trie.insert(word);
+                            }
+                            temp_word = "";
+                            word = "";
+                        }
+                    }
+                }
+                if ( num_line % 5 == 0 ) {
+                    data_trie.add(temp_trie);
+                    temp_trie = new Trie();
+                }
+            }
+            return data_trie;
+        }
+
+    }
+
+
+
+
+
+    static class TrieNode {
+        TrieNode[] children = new TrieNode[26];
+        int isEndOfWord = 0;
+    }
+    static public class Trie {
+        TrieNode root = new TrieNode();
+        int total = 0;
+
+        // 插入一個單詞到 Trie
+        public void insert(String word) {
+            TrieNode node = root;
+            for (char c : word.toCharArray()) {
+                if (node.children[c - 'a'] == null) {
+                    node.children[c - 'a'] = new TrieNode();
+                }
+                node = node.children[c - 'a'];
+            }
+            node.isEndOfWord += 1;
+        }
+
+        // 搜尋 Trie 中是否存在該單詞
+        public int search(String word) {
+            TrieNode node = root;
+            for (char c : word.toLowerCase().toCharArray()) {
+                node = node.children[c - 'a'];
+                if (node == null) {
+                    return 0;
+                }
+            }
+            return node.isEndOfWord;
+        }
+    }
+    static public class tool{
+        static public void write_file(ArrayList<Double> ans_list) throws IOException {
+            BufferedWriter writetext = new BufferedWriter(new FileWriter(outputPath));
+            for( int i = 0; i < ans_list.size(); i++ ) {
+                writetext.write( String.format("%.5f", ans_list.get(i)) );
+                if( i != ans_list.size() - 1 )
+                    writetext.write(" ");
+            }
+            writetext.close();
+        }
+
+        static public ArrayList<ArrayList<String>> read_file( String filePath ) throws IOException {
+            BufferedReader reader = new BufferedReader(new FileReader(filePath));
+
+
+            ArrayList<ArrayList<String>> data_list = new ArrayList<>();
+
+            String line;
+            int count = 0;
+
+            while ((line = reader.readLine()) != null && count < 2) {
+                ArrayList<String> lineList = new ArrayList<>();
+                String[] words = line.split("\\s+");
+
+                for (String word : words) {
+                    lineList.add(word);
+                }
+
+                data_list.add(lineList);
+                count++;
+            }
+
+            reader.close();
+            return data_list;
+        }
+    }
+}
